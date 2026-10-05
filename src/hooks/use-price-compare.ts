@@ -6,15 +6,19 @@ import type { PriceRow } from '@/lib/normalize';
 export type MarketStatus = 'queued' | 'running' | 'done' | 'failed';
 
 export interface StreamingPreview {
+  key: string;
   market: string;
+  site: string;
   streamingUrl: string;
   done: boolean;
 }
 
 export interface CompareRequest {
-  url: string;
-  target: string;
+  origin: string;
+  destination: string;
+  date: string;
   markets: string[];
+  sites: string[];
 }
 
 export function usePriceCompare() {
@@ -29,33 +33,39 @@ export function usePriceCompare() {
   const abortRef = useRef<AbortController | null>(null);
 
   const handleEvent = useCallback((event: Record<string, unknown>) => {
-    const market = event.market as string | undefined;
+    const key = event.key as string | undefined;
     switch (event.type) {
       case 'FX_RATES':
         setFxLoaded(true);
         break;
       case 'MARKET_STARTED':
-        if (market) setStatus((s) => ({ ...s, [market]: 'running' }));
+        if (key) setStatus((s) => ({ ...s, [key]: 'running' }));
         break;
       case 'STREAMING_URL':
-        if (market)
+        if (key)
           setPreviews((p) => [
-            ...p.filter((x) => x.market !== market),
-            { market, streamingUrl: event.streamingUrl as string, done: false },
+            ...p.filter((x) => x.key !== key),
+            {
+              key,
+              market: (event.market as string) ?? '',
+              site: (event.site as string) ?? '',
+              streamingUrl: event.streamingUrl as string,
+              done: false,
+            },
           ]);
         break;
       case 'PRICE_RESULT':
-        if (market) {
-          setRows((r) => [...r.filter((x) => x.market !== market), event.row as PriceRow]);
-          setStatus((s) => ({ ...s, [market]: 'done' }));
-          setPreviews((p) => p.map((x) => (x.market === market ? { ...x, done: true } : x)));
+        if (key) {
+          setRows((r) => [...r.filter((x) => x.jobKey !== key), event.row as PriceRow]);
+          setStatus((s) => ({ ...s, [key]: 'done' }));
+          setPreviews((p) => p.map((x) => (x.key === key ? { ...x, done: true } : x)));
         }
         break;
       case 'MARKET_FAILED':
-        if (market) {
-          setStatus((s) => ({ ...s, [market]: 'failed' }));
-          setErrors((e) => ({ ...e, [market]: event.error as string }));
-          setPreviews((p) => p.map((x) => (x.market === market ? { ...x, done: true } : x)));
+        if (key) {
+          setStatus((s) => ({ ...s, [key]: 'failed' }));
+          setErrors((e) => ({ ...e, [key]: event.error as string }));
+          setPreviews((p) => p.map((x) => (x.key === key ? { ...x, done: true } : x)));
         }
         break;
       case 'COMPARE_COMPLETE':
@@ -76,7 +86,13 @@ export function usePriceCompare() {
       setElapsed(null);
       setFxLoaded(false);
       setError(null);
-      setStatus(Object.fromEntries(req.markets.map((m) => [m, 'queued' as MarketStatus])));
+      setStatus(
+        Object.fromEntries(
+          req.sites.flatMap((site) =>
+            req.markets.map((market) => [`${site}:${market}`, 'queued' as MarketStatus]),
+          ),
+        ),
+      );
       setIsRunning(true);
 
       try {

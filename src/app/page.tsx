@@ -14,9 +14,10 @@ export default function Home() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold">Geo Fare Gap</h1>
         <p className="text-zinc-400">
-          Same flight, same hotel, different country, different price. Paste a booking link and
-          TinyFish browser agents open it from up to 7 countries at once, read the price each
-          location is shown, and convert everything to GBP so you can see who pays more.
+          Same flight, different country, different price. Pick a route and TinyFish browser
+          agents search it on Google Flights, Kayak and Skyscanner from up to 7 countries at
+          once — each through a local proxy — read the fare each location is shown, and convert
+          everything to GBP so you can see where the same seat costs less.
         </p>
       </header>
 

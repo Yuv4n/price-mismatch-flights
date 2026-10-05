@@ -2,10 +2,12 @@ export const runtime = "nodejs";
 export const maxDuration = 800;
 
 import { BrowserProfile, RunStatus, TinyFish, type ProxyCountryCode } from "@tiny-fish/sdk";
+import { getAirport, isAirportCode } from "@/lib/airports";
 import { getEnv } from "@/lib/env";
 import { getGbpRates } from "@/lib/fx";
 import { DEFAULT_MARKETS, isMarketCode } from "@/lib/markets";
 import { toPriceRow, type AgentPriceResult } from "@/lib/normalize";
+import { DEFAULT_SITES, getSite, isSiteId, type FlightSite } from "@/lib/sites";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -17,28 +19,28 @@ const REQUEST_TIMEOUT_MS = 780_000;
 // Goal prompt
 // ---------------------------------------------------------------------------
 
-const buildGoal = (target: string) => `You are checking what price a visitor from THIS country is shown for a travel product (flight, hotel, activity or rental).
+const buildGoal = (origin: string, destination: string, date: string) => `You are checking what price a visitor from THIS country is shown for a flight.
 
-What to price: ${target}
+Flight to price: one-way, 1 adult, economy, ${origin} to ${destination}, departing ${date}.
 
 Steps:
-1. Wait for the page to fully render. Travel sites load prices with JavaScript, so wait 3-5 seconds.
+1. Wait for the page to fully render. Flight results load with JavaScript, so wait 5-10 seconds.
 2. Dismiss cookie banners, newsletter popups and login modals.
 3. IMPORTANT: do NOT change the site's country, region, language or currency settings.
    We want exactly the price this location sees by default.
-4. If prices only appear after pressing a search/submit button, press it with the values already filled in.
-5. Find the price for the item described above. If several options are shown, take the
-   cheapest option that matches the description.
+4. If the page shows an error or a homepage instead of results, use the site's own
+   search form: one-way, 1 adult, economy, ${origin} to ${destination}, departing ${date}.
+5. Sort by "cheapest" if a sort control exists, then take the cheapest fare shown.
 
 Return JSON:
 {
   "site_name": "Name of the website",
-  "product_description": "Short description of what was priced (e.g. 'LHR-JFK 12 Nov, economy, BA 117')",
+  "product_description": "Short description of the fare (e.g. 'LHR-JFK 12 Nov, economy, BA 117')",
   "price": 123.45,                      // number only, no symbols
   "currency": "GBP",                    // ISO 4217 code of the currency shown
   "price_text": "£123.45",              // exactly as displayed
   "locale_shown": "e.g. 'UK / English / GBP' — the site region the page displayed",
-  "notes": "Anything that affects comparability (taxes excluded, per night, member price, etc.)"
+  "notes": "Anything that affects comparability (basic economy, taxes excluded, etc.)"
 }
 If no price can be found, return the same JSON with "price": null and explain why in "notes".`;
 
@@ -46,7 +48,25 @@ If no price can be found, return the same JSON with "price": null and explain wh
 // Types
 // ---------------------------------------------------------------------------
 
-type CompareBody = { url: string; target: string; markets?: string[] };
+type CompareBody = {
+  origin: string;
+  destination: string;
+  date: string;
+  markets?: string[];
+  sites?: string[];
+};
+
+interface Route {
+  origin: string;
+  destination: string;
+  date: string;
+}
+
+interface Job {
+  key: string; // `${site.id}:${market}`
+  site: FlightSite;
+  market: ProxyCountryCode;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -74,35 +94,47 @@ async function runWithLimit<T>(jobs: (() => Promise<T>)[], limit: number) {
   return results;
 }
 
+const routeLabel = (code: string) => {
+  const airport = getAirport(code);
+  return airport ? `${code} (${airport.city})` : code;
+};
+
 // ---------------------------------------------------------------------------
-// TinyFish agent per market — same URL, different proxy country
+// TinyFish agent per site × market — same route, different site + proxy country
 // ---------------------------------------------------------------------------
 
-async function runAgentForMarket(
+async function runAgentForJob(
   client: TinyFish,
-  url: string,
-  target: string,
-  market: ProxyCountryCode,
+  job: Job,
+  route: Route,
+  goal: string,
   rates: Record<string, number>,
   enqueue: (payload: unknown) => void,
 ): Promise<boolean> {
   const startedAt = Date.now();
-  console.log(`[GEO] Starting ${market}: ${url}`);
-  enqueue({ type: "MARKET_STARTED", market });
+  const url = job.site.buildUrl(route.origin, route.destination, route.date);
+  console.log(`[GEO] Starting ${job.key}: ${url}`);
+  enqueue({ type: "MARKET_STARTED", key: job.key, market: job.market, site: job.site.id });
 
   try {
     const stream = await client.agent.stream({
       url,
-      goal: buildGoal(target),
+      goal,
       browser_profile: BrowserProfile.STEALTH,
-      proxy_config: { enabled: true, country_code: market },
+      proxy_config: { enabled: true, country_code: job.market },
     });
 
     let resultJson: AgentPriceResult | undefined;
 
     for await (const event of stream) {
       if (event.type === "STREAMING_URL") {
-        enqueue({ type: "STREAMING_URL", market, streamingUrl: event.streaming_url });
+        enqueue({
+          type: "STREAMING_URL",
+          key: job.key,
+          market: job.market,
+          site: job.site.id,
+          streamingUrl: event.streaming_url,
+        });
         continue;
       }
 
@@ -118,15 +150,24 @@ async function runAgentForMarket(
 
     if (!resultJson) throw new Error("Stream finished without COMPLETED result");
 
-    const row = toPriceRow(market, resultJson, rates);
-    enqueue({ type: "PRICE_RESULT", market, row, elapsed: `${elapsedSeconds(startedAt)}s` });
-    console.log(`[GEO] Complete ${market}: ${row.priceText} (${elapsedSeconds(startedAt)}s)`);
+    const row = toPriceRow(job.market, resultJson, rates, job.site.name, job.key);
+    enqueue({
+      type: "PRICE_RESULT",
+      key: job.key,
+      market: job.market,
+      site: job.site.id,
+      row,
+      elapsed: `${elapsedSeconds(startedAt)}s`,
+    });
+    console.log(`[GEO] Complete ${job.key}: ${row.priceText} (${elapsedSeconds(startedAt)}s)`);
     return row.price != null;
   } catch (error) {
-    console.error(`[GEO] Failed ${market}`, error);
+    console.error(`[GEO] Failed ${job.key}`, error);
     enqueue({
       type: "MARKET_FAILED",
-      market,
+      key: job.key,
+      market: job.market,
+      site: job.site.id,
       error: error instanceof Error ? error.message : "Agent run failed",
     });
     return false;
@@ -146,17 +187,34 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  let url: URL;
-  try {
-    url = new URL(body.url);
-  } catch {
-    return Response.json({ error: "A valid booking URL is required" }, { status: 400 });
+  const origin = typeof body.origin === "string" ? body.origin.trim().toUpperCase() : "";
+  const destination =
+    typeof body.destination === "string" ? body.destination.trim().toUpperCase() : "";
+  const date = typeof body.date === "string" ? body.date.trim() : "";
+
+  if (!isAirportCode(origin) || !isAirportCode(destination)) {
+    return Response.json(
+      { error: "Valid 3-letter origin and destination airport codes are required" },
+      { status: 400 },
+    );
+  }
+  if (origin === destination) {
+    return Response.json({ error: "Origin and destination must be different" }, { status: 400 });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return Response.json({ error: "A departure date (YYYY-MM-DD) is required" }, { status: 400 });
   }
 
-  const target = body.target?.trim() || "the main price shown on the page";
   const markets = (body.markets?.length ? body.markets : DEFAULT_MARKETS).filter(isMarketCode);
   if (!markets.length) {
-    return Response.json({ error: "Pick at least one market" }, { status: 400 });
+    return Response.json({ error: "Pick at least one country" }, { status: 400 });
+  }
+
+  const sites = (body.sites?.length ? body.sites : DEFAULT_SITES)
+    .filter(isSiteId)
+    .map((id) => getSite(id) as FlightSite);
+  if (!sites.length) {
+    return Response.json({ error: "Pick at least one flight site" }, { status: 400 });
   }
 
   let env;
@@ -168,6 +226,12 @@ export async function POST(request: Request): Promise<Response> {
 
   const client = new TinyFish({ apiKey: env.TINYFISH_API_KEY, timeout: REQUEST_TIMEOUT_MS });
   const compareStartedAt = Date.now();
+
+  const route: Route = { origin, destination, date };
+  const goal = buildGoal(routeLabel(origin), routeLabel(destination), date);
+  const jobs: Job[] = sites.flatMap((site) =>
+    markets.map((market) => ({ key: `${site.id}:${market}`, site, market })),
+  );
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -187,17 +251,16 @@ export async function POST(request: Request): Promise<Response> {
         enqueue({ type: "FX_FAILED" });
       }
 
-      // 2. One browser agent per market, capped at the plan's concurrency
-      const jobs = markets.map(
-        (market) => () =>
-          runAgentForMarket(client, url.toString(), target, market, rates, enqueue),
+      // 2. One browser agent per site × country, capped at the plan's concurrency
+      const tasks = jobs.map(
+        (job) => () => runAgentForJob(client, job, route, goal, rates, enqueue),
       );
-      const settled = await runWithLimit(jobs, env.TINYFISH_CONCURRENCY);
+      const settled = await runWithLimit(tasks, env.TINYFISH_CONCURRENCY);
       const succeeded = settled.filter((r) => r.status === "fulfilled" && r.value).length;
 
       enqueue({
         type: "COMPARE_COMPLETE",
-        total: markets.length,
+        total: jobs.length,
         succeeded,
         elapsed: `${elapsedSeconds(compareStartedAt)}s`,
       });

@@ -17,7 +17,7 @@ export function PriceTable({ rows }: { rows: PriceRow[] }) {
   const downloadCsv = () => {
     const header = 'market,site,product,price_local,currency,price_gbp,gap_gbp,gap_pct,locale_shown,notes';
     const lines = ranked.map((r) =>
-      [r.market, r.siteName, r.product, r.price, r.currency, r.priceGbp, r.gapGbp, r.gapPct, r.localeShown, r.notes]
+      [r.market, r.site || r.siteName, r.product, r.price, r.currency, r.priceGbp, r.gapGbp, r.gapPct, r.localeShown, r.notes]
         .map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`)
         .join(','),
     );
@@ -34,10 +34,11 @@ export function PriceTable({ rows }: { rows: PriceRow[] }) {
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
           <p className="text-sm text-emerald-300">Cheapest market</p>
           <p className="text-2xl font-semibold">
-            {getMarket(cheapest.market)?.flag} {getMarket(cheapest.market)?.name}: {gbp(cheapest.priceGbp)}
+            {cheapest.site} · {getMarket(cheapest.market)?.flag} {getMarket(cheapest.market)?.name}:{' '}
+            {gbp(cheapest.priceGbp)}
           </p>
           <p className="text-sm text-zinc-300">
-            Booking from {getMarket(dearest.market)?.name} costs {gbp(spread)} more
+            Booking {dearest.site} from {getMarket(dearest.market)?.name} costs {gbp(spread)} more
             {cheapest.priceGbp ? ` (+${((spread / (cheapest.priceGbp as number)) * 100).toFixed(1)}%)` : ''}.
           </p>
         </div>
@@ -48,6 +49,7 @@ export function PriceTable({ rows }: { rows: PriceRow[] }) {
           <thead className="bg-zinc-900 text-left text-zinc-400">
             <tr>
               <th className="p-3">#</th>
+              <th className="p-3">Site</th>
               <th className="p-3">Seen from</th>
               <th className="p-3">Price shown</th>
               <th className="p-3">In GBP</th>
@@ -59,10 +61,11 @@ export function PriceTable({ rows }: { rows: PriceRow[] }) {
           <tbody>
             {ranked.map((r) => (
               <tr
-                key={r.market}
+                key={r.jobKey}
                 className={`border-t border-zinc-800 ${r.isCheapest ? 'bg-emerald-500/5' : ''}`}
               >
                 <td className="p-3 text-zinc-500">{r.rank ?? '—'}</td>
+                <td className="p-3 whitespace-nowrap">{r.site || r.siteName}</td>
                 <td className="p-3 whitespace-nowrap">
                   {getMarket(r.market)?.flag} {getMarket(r.market)?.name}
                 </td>

@@ -11,7 +11,9 @@ export interface AgentPriceResult {
 }
 
 export interface PriceRow {
+  jobKey: string; // `${siteId}:${market}`
   market: string;
+  site: string;
   siteName: string;
   product: string;
   price: number | null;
@@ -106,12 +108,16 @@ export function toPriceRow(
   market: string,
   raw: AgentPriceResult,
   rates: Record<string, number>,
+  site = "",
+  jobKey = market,
 ): PriceRow {
   const priceText = String(raw.price_text ?? raw.price ?? "");
   const price = parsePrice(raw.price) ?? parsePrice(raw.price_text);
   const currency = normaliseCurrency(raw.currency, priceText);
   return {
+    jobKey,
     market,
+    site,
     siteName: raw.site_name ?? "Unknown site",
     product: raw.product_description ?? "",
     price,

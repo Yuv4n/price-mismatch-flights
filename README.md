@@ -1,9 +1,9 @@
 # Geo Fare Gap
 **Live Demo:** _add URL after deploy_
 
-**Same flight, same hotel, different country, different price. Geo Fare Gap opens one booking page from up to 7 countries at the same time and shows you which location is quoted the lowest price.**
+**Same flight, different country, different price. Geo Fare Gap searches one route on multiple flight sites from up to 7 countries at the same time and shows you where the same seat is quoted the lowest price.**
 
-Paste a link to a flight search, hotel results page or activity listing. The app starts one TinyFish browser agent per country (UK, US, Germany, France, Canada, Japan, Australia). Each agent is routed through that country's proxy with `proxy_config.country_code`, so the site sees a local visitor. The agent reads the price shown without touching the site's currency or region settings. TinyFish Fetch pulls live GBP exchange rates, and the app ranks every market by its GBP price and shows the gap to the cheapest.
+Pick an origin airport, a destination airport and a date. The app builds the search URL for Google Flights, Kayak and Skyscanner, then starts one TinyFish browser agent per site × country (UK, US, Germany, France, Canada, Japan, Australia). Each agent is routed through that country's proxy with `proxy_config.country_code`, so the site sees a local visitor. The agent reads the cheapest fare shown without touching the site's currency or region settings. TinyFish Fetch pulls live GBP exchange rates, and the app ranks every site × country pair by its GBP price and shows the gap to the cheapest.
 
 ## Demo
 
@@ -11,12 +11,12 @@ _add screenshot / gif here_
 
 ## TinyFish API usage
 
-**Agent + country proxy** (`src/app/api/compare/route.ts`): the same URL is opened once per market.
+**Agent + country proxy** (`src/app/api/compare/route.ts`): the same route is searched once per site × market.
 
 ```ts
 const stream = await client.agent.stream({
-  url,
-  goal: buildGoal(target), // "find the price for <target>, do NOT change country/currency, return JSON"
+  url: site.buildUrl(origin, destination, date), // Google Flights / Kayak / Skyscanner search URL
+  goal: buildGoal(origin, destination, date), // "cheapest fare for this route, do NOT change country/currency, return JSON"
   browser_profile: BrowserProfile.STEALTH,
   proxy_config: { enabled: true, country_code: market }, // "GB" | "US" | "DE" | "FR" | "CA" | "JP" | "AU"
 });
@@ -58,7 +58,7 @@ Each agent returns:
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                       Browser (Client)                       │
-│  CompareForm (URL + what to price + countries)               │
+│  CompareForm (route + date + sites + countries)              │
 │  PriceTable (ranked, GBP, gap vs cheapest, CSV export)       │
 │  LivePreviewGrid (one live agent iframe per country)         │
 └──────────────────────────────┬───────────────────────────────┘
@@ -69,11 +69,12 @@ Each agent returns:
 │                                                              │
 │  1. Fetch → open.er-api.com/v6/latest/GBP → FX_RATES         │
 │                                                              │
-│  2. Agent × N  (capped by TINYFISH_CONCURRENCY)              │
-│       same URL ── proxy GB ──► price in GBP                  │
-│       same URL ── proxy US ──► price in USD                  │
-│       same URL ── proxy DE ──► price in EUR                  │
-│       same URL ── proxy JP ──► price in JPY                  │
+│  2. Agent × (sites × countries)                              │
+│     (capped by TINYFISH_CONCURRENCY)                         │
+│       same route ── proxy GB ──► fare in GBP                 │
+│       same route ── proxy US ──► fare in USD                 │
+│       same route ── proxy DE ──► fare in EUR                 │
+│       same route ── proxy JP ──► fare in JPY                 │
 │     browser_profile: STEALTH                                 │
 │     STREAMING_URL → live iframe per country                  │
 │     COMPLETE + COMPLETED → validate JSON → PRICE_RESULT      │
