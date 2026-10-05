@@ -34,7 +34,61 @@ const skyscanner: FlightSite = {
   },
 };
 
-export const SITES: FlightSite[] = [googleFlights, kayak, skyscanner];
+const momondo: FlightSite = {
+  id: "momondo",
+  name: "Momondo",
+  buildUrl: (origin, destination, date) =>
+    `https://www.momondo.com/flight-search/${origin}-${destination}/${date}?sort=price_a`,
+};
+
+const cheapflights: FlightSite = {
+  id: "cheapflights",
+  name: "Cheapflights",
+  buildUrl: (origin, destination, date) =>
+    `https://www.cheapflights.com/flight-search/${origin}-${destination}/${date}?sort=price_a`,
+};
+
+const expedia: FlightSite = {
+  id: "expedia",
+  name: "Expedia",
+  buildUrl: (origin, destination, date) => {
+    const [y, m, d] = date.split("-");
+    return `https://www.expedia.com/Flights-Search?trip=oneway&leg1=from:${origin},to:${destination},departure:${m}/${d}/${y}TANYT&passengers=adults:1&options=cabinclass:economy&mode=search`;
+  },
+};
+
+const kiwi: FlightSite = {
+  id: "kiwi",
+  name: "Kiwi.com",
+  buildUrl: (origin, destination, date) =>
+    `https://www.kiwi.com/en/search/results/${origin}/${destination}/${date}/no-return?sortBy=price`,
+};
+
+const tripCom: FlightSite = {
+  id: "trip-com",
+  name: "Trip.com",
+  buildUrl: (origin, destination, date) =>
+    `https://www.trip.com/flights/showfarefirst?dcity=${origin.toLowerCase()}&acity=${destination.toLowerCase()}&ddate=${date}&triptype=ow&class=y&quantity=1&sort=price`,
+};
+
+const bookingCom: FlightSite = {
+  id: "booking-com",
+  name: "Booking.com",
+  buildUrl: (origin, destination, date) =>
+    `https://flights.booking.com/flights/${origin}.AIRPORT-${destination}.AIRPORT/?type=ONEWAY&adults=1&cabinClass=ECONOMY&depart=${date}&sort=CHEAPEST`,
+};
+
+export const SITES: FlightSite[] = [
+  googleFlights,
+  kayak,
+  skyscanner,
+  momondo,
+  cheapflights,
+  expedia,
+  kiwi,
+  tripCom,
+  bookingCom,
+];
 
 export const DEFAULT_SITES: string[] = ["google-flights", "kayak"];
 

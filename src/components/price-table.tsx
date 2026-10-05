@@ -31,51 +31,51 @@ export function PriceTable({ rows }: { rows: PriceRow[] }) {
   return (
     <section className="space-y-4">
       {priced.length > 1 && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
-          <p className="text-sm text-emerald-300">Cheapest market</p>
-          <p className="text-2xl font-semibold">
+        <div className="rounded-xl border border-stone-800/80 p-6">
+          <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-fish">Cheapest market</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight">
             {cheapest.site} · {getMarket(cheapest.market)?.flag} {getMarket(cheapest.market)?.name}:{' '}
             {gbp(cheapest.priceGbp)}
           </p>
-          <p className="text-sm text-zinc-300">
+          <p className="mt-2 text-sm text-stone-400">
             Booking {dearest.site} from {getMarket(dearest.market)?.name} costs {gbp(spread)} more
             {cheapest.priceGbp ? ` (+${((spread / (cheapest.priceGbp as number)) * 100).toFixed(1)}%)` : ''}.
           </p>
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-zinc-800">
+      <div className="overflow-x-auto rounded-xl border border-stone-800">
         <table className="w-full text-sm">
-          <thead className="bg-zinc-900 text-left text-zinc-400">
+          <thead className="text-left text-[11px] uppercase tracking-[0.12em] text-stone-500">
             <tr>
-              <th className="p-3">#</th>
-              <th className="p-3">Site</th>
-              <th className="p-3">Seen from</th>
-              <th className="p-3">Price shown</th>
-              <th className="p-3">In GBP</th>
-              <th className="p-3">vs cheapest</th>
-              <th className="p-3">Site region</th>
-              <th className="p-3">Notes</th>
+              <th className="px-4 py-3 font-medium">#</th>
+              <th className="px-4 py-3 font-medium">Site</th>
+              <th className="px-4 py-3 font-medium">Seen from</th>
+              <th className="px-4 py-3 font-medium">Price shown</th>
+              <th className="px-4 py-3 font-medium">In GBP</th>
+              <th className="px-4 py-3 font-medium">vs cheapest</th>
+              <th className="px-4 py-3 font-medium">Site region</th>
+              <th className="px-4 py-3 font-medium">Notes</th>
             </tr>
           </thead>
           <tbody>
             {ranked.map((r) => (
               <tr
                 key={r.jobKey}
-                className={`border-t border-zinc-800 ${r.isCheapest ? 'bg-emerald-500/5' : ''}`}
+                className={`border-t border-stone-800 ${r.isCheapest ? 'bg-fish/[0.05]' : ''}`}
               >
-                <td className="p-3 text-zinc-500">{r.rank ?? '—'}</td>
-                <td className="p-3 whitespace-nowrap">{r.site || r.siteName}</td>
-                <td className="p-3 whitespace-nowrap">
+                <td className="px-4 py-3 text-stone-500">{r.rank ?? '—'}</td>
+                <td className="px-4 py-3 whitespace-nowrap">{r.site || r.siteName}</td>
+                <td className="px-4 py-3 whitespace-nowrap">
                   {getMarket(r.market)?.flag} {getMarket(r.market)?.name}
                 </td>
-                <td className="p-3 font-mono">{r.priceText || '—'}</td>
-                <td className="p-3 font-mono font-semibold">{gbp(r.priceGbp)}</td>
-                <td className={`p-3 font-mono ${r.gapGbp ? 'text-rose-400' : 'text-emerald-400'}`}>
+                <td className="px-4 py-3 font-mono">{r.priceText || '—'}</td>
+                <td className="px-4 py-3 font-mono font-semibold">{gbp(r.priceGbp)}</td>
+                <td className={`p-3 font-mono ${r.gapGbp ? 'text-stone-500' : 'text-fish'}`}>
                   {r.gapGbp == null ? '—' : r.gapGbp === 0 ? 'cheapest' : `+${gbp(r.gapGbp)} (${r.gapPct}%)`}
                 </td>
-                <td className="p-3 text-zinc-400">{r.localeShown || '—'}</td>
-                <td className="p-3 text-zinc-400 max-w-xs">{r.notes || r.product}</td>
+                <td className="px-4 py-3 text-stone-400">{r.localeShown || '—'}</td>
+                <td className="px-4 py-3 text-stone-400 max-w-xs">{r.notes || r.product}</td>
               </tr>
             ))}
           </tbody>
@@ -84,7 +84,7 @@ export function PriceTable({ rows }: { rows: PriceRow[] }) {
 
       <button
         onClick={downloadCsv}
-        className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800"
+        className="rounded-md border border-stone-800 px-3 py-1.5 text-xs text-stone-400 transition hover:border-stone-600 hover:text-fish"
       >
         Download CSV
       </button>

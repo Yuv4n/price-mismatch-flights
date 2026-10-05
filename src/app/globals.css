@@ -1,7 +1,29 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --color-fish: #ff6700;
+  --color-fish-dark: #d04400;
+  --color-sage: #64766a;
+}
+
 body {
-  background: #09090b;
-  color: #f4f4f5;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #0a0a0a;
+  color: #f5f5f4;
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "tnum";
+}
+
+::selection {
+  background: #ff6700;
+  color: #ffffff;
+}
+
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2378716c' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2rem !important;
 }
